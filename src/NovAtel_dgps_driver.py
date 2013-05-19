@@ -2,6 +2,12 @@
 
 # Software License Agreement (BSD License)
 #
+# This file is part of Fork of ros-drivers/nmea_gps_driver
+# Modify for NovAtel ProPak V3/ LB+ DGPS unit
+# Copyright (c) 2013 UDM Advanced Mobile Robotics Lab Cheng-Lung Lee
+#
+# Software License Agreement (BSD License)
+#
 # Copyright (c) 2012, Steven Martin, Eric Perko
 # All rights reserved.
 #
@@ -119,6 +125,8 @@ if __name__ == "__main__":
         frame_id = addTFPrefix(frame_id)
 
     time_ref_source = rospy.get_param('~time_ref_source', frame_id)
+    
+    # for NovAtel DGPS plase set this False, use gpggalong data
     useRMC = rospy.get_param('~useRMC', False)
     
     # these are for NovAtel dgps setting
@@ -152,7 +160,6 @@ if __name__ == "__main__":
 
 
         myStr1=('\r\nunlogall\r\nunlogall %s_30 \r\n' % NovAtel_output_port  )
-        #
         myStr2=('log gpggalong ontime %1.2f\r\n' % (1./gps_update_rate)  )
         myStr3=('log gprmc ontime %1.2f\r\n' % (1./gps_update_rate)  )
         myStr4=('log gpgsa ontime %1.2f\r\n' % (1./gps_update_rate)  )
@@ -184,6 +191,7 @@ if __name__ == "__main__":
             rospy.logerr('[1]Received No data from DGPS. Shutdown!')
             rospy.signal_shutdown('Received No data from DGPS')
 
+        # set up output formate, for NovAtel dpgs please use gpggalong
         if useRMC:
             GPS.write(myStr3)
             GPS.write(myStr4)
@@ -194,7 +202,6 @@ if __name__ == "__main__":
         GPS.write(myStr6) #PSRDIFFSOURCE OMNISTAR
         GPS.write(myStr7) #SAVECONFIG  # I know I don't need to save it, just in case
        
-        #Read in GPS
         while not rospy.is_shutdown():
         
         
