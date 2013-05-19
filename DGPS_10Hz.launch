@@ -1,13 +1,14 @@
 <launch>
  <node ns="gps" pkg="NovAtel_dgps_driver" type="NovAtel_dgps_driver.py" name="NovAtel_dgps" respawn="true">
 
-    <param name="port" value="/dev/sensors/ftdi_THORDGPS" />
-    <!--param name="port" value="/dev/sensors/ftdi_CAP_DGPS" /-->
+    <!-- param name="port" value="/dev/sensors/ftdi_THORDGPS" /-->
+    <!-- param name="port" value="/dev/sensors/ftdi_CAP_DGPS" /-->
 
     <param name="baud" value="115200" />
     
     <!-- This will setup GPS message update rate 10 Hz on ProPak LB+ , 20 Hz on ProPa V3-->
     <param name="gps_update_rate" value="10" />
     <param name="NovAtel_output_port" value="COM1" />
+    <param name="NovAtel_SAVECONFIG" value="False" />
  </node>
 </launch>

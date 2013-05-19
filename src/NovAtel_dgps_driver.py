@@ -47,7 +47,6 @@ from sensor_msgs.msg import TimeReference
 from geometry_msgs.msg import TwistStamped
 
 import serial, string, math, time, calendar
-import sys
 #global checksum_error_counter
 #global  Checksum_error_limits
 #nmea_utc should be a string of form hhmmss
@@ -106,7 +105,6 @@ def _shutdown():
     global GPS
     print "DGPS shutdown time!"
     GPS.close() #Close DGPS serial port
-    #sys.exit(0)
 
 if __name__ == "__main__":
     global Checksum_error_limits
@@ -115,7 +113,6 @@ if __name__ == "__main__":
     #init publisher
     rospy.init_node('NovAtel_dgps_driver')
     gpspub = rospy.Publisher('fix', NavSatFix)
-    gpsVelPub = rospy.Publisher('vel',TwistStamped)
     gpstimePub = rospy.Publisher('time_reference', TimeReference)
     #Init GPS port
     GPSport = rospy.get_param('~port','/dev/ttyUSB0')
@@ -135,14 +132,17 @@ if __name__ == "__main__":
     # this is the serial port number on NovAtel DGPS unit not your PC's.
     NovAtel_output_port=rospy.get_param('~NovAtel_output_port', 'COM1')
     Checksum_error_limits=rospy.get_param('~Checksum_error_limits', 10.)
+    NovAtel_SAVECONFIG=rospy.get_param('~NovAtel_SAVECONFIG',False)
     #useRMC == True -> generate info from RMC+GSA
     #useRMC == False -> generate info from GGA
     navData = NavSatFix()
-    gpsVel = TwistStamped()
+    if useRMC:
+        gpsVelPub = rospy.Publisher('vel',TwistStamped)
+        gpsVel = TwistStamped()
+        gpsVel.header.frame_id = frame_id
     gpstime = TimeReference()
     gpstime.source = time_ref_source
     navData.header.frame_id = frame_id
-    gpsVel.header.frame_id = frame_id
     GPSLock = False
     checksum_error_counter=0
     rospy.on_shutdown(_shutdown)
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         GPS.write(myStr1) # unlog everything
         
         ### for loop back testing only
-        GPS.write('OK')
+        #GPS.write('OK')
         ### end of loop back debug
         
         GPS.flush() # flush data out
@@ -200,7 +200,8 @@ if __name__ == "__main__":
         
         GPS.write(myStr5) #RTKSOURCE OMNISTAR
         GPS.write(myStr6) #PSRDIFFSOURCE OMNISTAR
-        GPS.write(myStr7) #SAVECONFIG  # I know I don't need to save it, just in case
+        if (NovAtel_SAVECONFIG):
+            GPS.write(myStr7) #SAVECONFIG  
        
         while not rospy.is_shutdown():
         
@@ -210,7 +211,7 @@ if __name__ == "__main__":
             #StrGPGGA='$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
             #StrGPGGA0='$GPGGA,,,,,,0,,,,,,,,*66\r\n'
             #StrGPGGA1='$GPGGA,,,,,,0,,,,,,,,*00\r\n'
-            #GPS.write(StrGPGGA0)
+            #GPS.write(StrGPGGA)
             #time.sleep(0.3)
             ### end of loop back debug
             
@@ -285,13 +286,27 @@ if __name__ == "__main__":
                     #No /vel output from just GGA
                     if 'GGA' in fields[0]:
                         gps_quality = int(fields[6])
-                        if gps_quality == 0:
+                        ##NovAtel DGPS Quality indicator
+                        #    0 = fix not available or invalid
+                        #    1 = GPS fix
+                        #    2 = C/A differential GPS, OmniSTAR HP,
+                        #        OmniSTAR XP, OmniSTAR VBS
+                        #    4 = RTK fixed ambiguity solution (RT2)
+                        #    5 = RTK floating ambiguity solution (RT20),
+                        #        OmniSTAR HP or OmniSTAR XP
+                        #    6 = Dead reckoning mode
+                        #    7 = Manual input mode (fixed position)
+                        #    8 = Simulator mode
+                        #    9 = WAAS
+                        #
+                        #
+                        if gps_quality == 0:        # no fix (-1)
                             navData.status.status = NavSatStatus.STATUS_NO_FIX
-                        elif gps_quality == 1:
+                        elif gps_quality in (1,9):  # fix or WAAS (0)
                             navData.status.status = NavSatStatus.STATUS_FIX
-                        elif gps_quality == 2:
+                        elif gps_quality == 2:      # DGPS  (1)
                             navData.status.status = NavSatStatus.STATUS_SBAS_FIX
-                        elif gps_quality in (4,5):
+                        elif gps_quality in (4,5):  # RTK (2)
                             #Maybe 2 should also sometimes be GBAS... but pretty
                             #sure RTK has to have a base station
                             navData.status.status = NavSatStatus.STATUS_GBAS_FIX
