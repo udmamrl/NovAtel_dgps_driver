@@ -183,12 +183,12 @@ if __name__ == "__main__":
             if ('OK' in data):
                 rospy.loginfo("Got OK when unlog DGPS data")
             else: 
-                rospy.logerr('[0] Unable to unlog DGPS data. Shutdown!')
+                rospy.logerr('[DGPS] Unable to unlog DGPS data. Shutdown!')
                 rospy.signal_shutdown('Unable to unlog DGPS data')
  
         else:
             #sned error no data in buffer error
-            rospy.logerr('[1]Received No data from DGPS. Shutdown!')
+            rospy.logerr('[DGPS]Received No data from DGPS. Shutdown!')
             rospy.signal_shutdown('Received No data from DGPS')
 
         # set up output formate, for NovAtel dpgs please use gpggalong
@@ -226,10 +226,9 @@ if __name__ == "__main__":
                 rospy.logerr("[DGPS] Received a sentence with an invalid checksum. Sentence was: %s" % data)
                 if (checksum_error_counter > Checksum_error_limits ):
                     #shutdown DGPS node
-                    #raise SystemExit, 0
-                    rospy.logerr('[DGPS] Too much back to back checksumn error in DGPS data. Shutdown!')
+                    rospy.logfatal('[DGPS] Too much back to back checksumn error in DGPS data. Shutdown!')
                     rospy.signal_shutdown('Too much back to back checksum error in DGPS data')
-                    sys.exit(0)
+                    
                 continue
 
             timeNow = rospy.get_rostime()
