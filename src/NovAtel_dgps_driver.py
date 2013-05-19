@@ -33,7 +33,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import roslib
-roslib.load_manifest('nmea_gps_driver')
+roslib.load_manifest('NovAtel_dgps_driver')
 import rospy
 from sensor_msgs.msg import NavSatFix
 from sensor_msgs.msg import NavSatStatus
@@ -41,7 +41,9 @@ from sensor_msgs.msg import TimeReference
 from geometry_msgs.msg import TwistStamped
 
 import serial, string, math, time, calendar
-
+import sys
+#global checksum_error_counter
+#global  Checksum_error_limits
 #nmea_utc should be a string of form hhmmss
 def convertNMEATimeToROS(nmea_utc):
     #Get current time in UTC for date information
@@ -69,32 +71,62 @@ def addTFPrefix(frame_id):
 
 #Check the NMEA sentence checksum. Return True if passes and False if failed
 def check_checksum(nmea_sentence):
-    split_sentence = nmea_sentence.split('*')
-    transmitted_checksum = split_sentence[1].strip()
-    
-    #Remove the $ at the front
-    data_to_checksum = split_sentence[0][1:]
-    checksum = 0
-    for c in data_to_checksum:
-        checksum ^= ord(c)
+    global checksum_error_counter, Checksum_error_limits
+    try:
+        split_sentence = nmea_sentence.split('*')
+        transmitted_checksum = split_sentence[1].strip()
+        
+        #Remove the $ at the front
+        data_to_checksum = split_sentence[0][1:]
+        checksum = 0
+        for c in data_to_checksum:
+            checksum ^= ord(c)
+        result=("%02X" % checksum)  == transmitted_checksum.upper()
+        if result:
+            # if we got right checksum, reset error counter
+            checksum_error_counter=0
+        else:
+            # keep checksum error count
+            checksum_error_counter+=1
 
-    return ("%02X" % checksum)  == transmitted_checksum.upper()
+        return result
+    except:
+        # Usually binary data will cause error.
+        checksum_error_counter+=1
+ 
+        return False
+        
+def _shutdown():
+    global GPS
+    print "DGPS shutdown time!"
+    GPS.close() #Close DGPS serial port
+    #sys.exit(0)
 
 if __name__ == "__main__":
+    global Checksum_error_limits
+    global checksum_error_counter
+    global GPS
     #init publisher
-    rospy.init_node('nmea_gps_driver')
+    rospy.init_node('NovAtel_dgps_driver')
     gpspub = rospy.Publisher('fix', NavSatFix)
     gpsVelPub = rospy.Publisher('vel',TwistStamped)
     gpstimePub = rospy.Publisher('time_reference', TimeReference)
     #Init GPS port
     GPSport = rospy.get_param('~port','/dev/ttyUSB0')
-    GPSrate = rospy.get_param('~baud',4800)
+    GPSrate = rospy.get_param('~baud',115200)
     frame_id = rospy.get_param('~frame_id','gps')
     if frame_id[0] != "/":
         frame_id = addTFPrefix(frame_id)
 
     time_ref_source = rospy.get_param('~time_ref_source', frame_id)
     useRMC = rospy.get_param('~useRMC', False)
+    
+    # these are for NovAtel dgps setting
+    # The update rate for the DGPS, NovAtel ProPak V3 20Hz, LB+ 10 Hz.
+    gps_update_rate = rospy.get_param('~gps_update_rate', 10.)    
+    # this is the serial port number on NovAtel DGPS unit not your PC's.
+    NovAtel_output_port=rospy.get_param('~NovAtel_output_port', 'COM1')
+    Checksum_error_limits=rospy.get_param('~Checksum_error_limits', 10.)
     #useRMC == True -> generate info from RMC+GSA
     #useRMC == False -> generate info from GGA
     navData = NavSatFix()
@@ -104,15 +136,92 @@ if __name__ == "__main__":
     navData.header.frame_id = frame_id
     gpsVel.header.frame_id = frame_id
     GPSLock = False
+    checksum_error_counter=0
+    rospy.on_shutdown(_shutdown)
     try:
-        GPS = serial.Serial(port=GPSport, baudrate=GPSrate, timeout=2)
+        GPS = serial.Serial(port=GPSport, baudrate=GPSrate, timeout=0.5)
+        #Setup DGPS here
+        #unlogall COM1
+        #unlogall COM1_30
+        #RTKSOURCE OMNISTAR
+        #PSRDIFFSOURCE OMNISTAR
+        #log gprmc ontime .05
+        #log gpgsa ontime .05
+        #log gpggalong ontime .05
+        #SAVECONFIG
+
+
+        myStr1=('\r\nunlogall\r\nunlogall %s_30 \r\n' % NovAtel_output_port  )
+        #
+        myStr2=('log gpggalong ontime %1.2f\r\n' % (1./gps_update_rate)  )
+        myStr3=('log gprmc ontime %1.2f\r\n' % (1./gps_update_rate)  )
+        myStr4=('log gpgsa ontime %1.2f\r\n' % (1./gps_update_rate)  )
+        myStr5='RTKSOURCE OMNISTAR\r\n'
+        myStr6='PSRDIFFSOURCE OMNISTAR\r\n'
+        myStr7='SAVECONFIG\r\n'
+
+        #GPS.write(\r\nunlogall \r\n)
+        GPS.write(myStr1) # unlog everything
+        
+        ### for loop back testing only
+        GPS.write('OK')
+        ### end of loop back debug
+        
+        GPS.flush() # flush data out
+        time.sleep(0.2)
+        if (GPS.inWaiting() >0):
+            #read out all datas, the response shuldbe OK
+            data=GPS.read(GPS.inWaiting())
+            rospy.loginfo("Send %s to DGPS. Got: %s" % (myStr1 ,data)) 
+            if ('OK' in data):
+                rospy.loginfo("Got OK when unlog DGPS data")
+            else: 
+                rospy.logerr('[0] Unable to unlog DGPS data. Shutdown!')
+                rospy.signal_shutdown('Unable to unlog DGPS data')
+ 
+        else:
+            #sned error no data in buffer error
+            rospy.logerr('[1]Received No data from DGPS. Shutdown!')
+            rospy.signal_shutdown('Received No data from DGPS')
+
+        if useRMC:
+            GPS.write(myStr3)
+            GPS.write(myStr4)
+        else:
+            GPS.write(myStr2) # log gpggalong
+        
+        GPS.write(myStr5) #RTKSOURCE OMNISTAR
+        GPS.write(myStr6) #PSRDIFFSOURCE OMNISTAR
+        GPS.write(myStr7) #SAVECONFIG  # I know I don't need to save it, just in case
+       
         #Read in GPS
         while not rospy.is_shutdown():
+        
+        
+        
+            ### for loop back debug only
+            #StrGPGGA='$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
+            #StrGPGGA0='$GPGGA,,,,,,0,,,,,,,,*66\r\n'
+            #StrGPGGA1='$GPGGA,,,,,,0,,,,,,,,*00\r\n'
+            #GPS.write(StrGPGGA0)
+            #time.sleep(0.3)
+            ### end of loop back debug
+            
+            
             #read GPS line
             data = GPS.readline()
 
             if not check_checksum(data):
-                rospy.logerr("Received a sentence with an invalid checksum. Sentence was: %s" % data)
+                #print checksum_error_counter
+                #print Checksum_error_limits
+                #print (checksum_error_counter > Checksum_error_limits )
+                rospy.logerr("[DGPS] Received a sentence with an invalid checksum. Sentence was: %s" % data)
+                if (checksum_error_counter > Checksum_error_limits ):
+                    #shutdown DGPS node
+                    #raise SystemExit, 0
+                    rospy.logerr('[DGPS] Too much back to back checksumn error in DGPS data. Shutdown!')
+                    rospy.signal_shutdown('Too much back to back checksum error in DGPS data')
+                    sys.exit(0)
                 continue
 
             timeNow = rospy.get_rostime()

@@ -1,5 +1,5 @@
 <package>
-  <description brief="nmea_gps_driver">
+  <description brief="NovAtel_dgps_driver">
 	Package to parse NMEA strings and publish standard ROS GPS messages. This package does not require the GPSD deamon.
   </description>
   <author>Steven Martin, Eric Perko</author>
