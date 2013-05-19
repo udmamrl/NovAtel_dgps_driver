@@ -1,6 +1,6 @@
 <launch>
  <node ns="gps" pkg="NovAtel_dgps_driver" type="NovAtel_dgps_driver.py" name="NovAtel_dgps" respawn="true">
-    <!--param name="port" value="/dev/sensors/ftdi_THORDGPS" /-->
+    <param name="port" value="/dev/sensors/ftdi_THORDGPS" />
     <!--param name="port" value="/dev/sensors/ftdi_CAP_DGPS" /-->
     <param name="baud" value="115200" />
     
