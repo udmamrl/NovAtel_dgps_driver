@@ -100,6 +100,46 @@ def check_checksum(nmea_sentence):
         checksum_error_counter+=1
  
         return False
+
+def Novatel_unlogall(com):
+    global GPS
+    myStr1=('\r\nunlogall\r\nlog loglist\r\n' )
+    # read all data out
+    # data=GPS.read(GPS.inWaiting())
+    #write loglist
+    GPS.write(myStr1) # unlog
+    time.sleep(0.1)
+    print '\r\nunlog start\r\n'
+    # Read every line till no data in buffer
+    while (GPS.inWaiting() >0):
+        data = GPS.readline()
+        #print data
+#example log list
+#<OK
+#[COM1]<LOGLIST COM1 0 89.0 UNKNOWN 0 790.529 004c0020 c00c 5683
+#<     9 
+#<          COM1 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          COM2 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          COM3 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          AUX RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          USB1 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          USB2 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          USB3 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD 
+#<          COM1_30 PSRDOPB ONCHANGED 0.000000 0.000000 HOLD 
+#<          COM1_30 TRACKSTATB ONTIME 1.000000 0.000000 HOLD
+#<          COM1_30 BESTPOSB ONTIME 1.000000 0.000000 HOLD
+#<          COM1_30 SATVISB ONTIME 1.000000 0.000000 HOLD
+#<          COM1 LOGLIST ONCE 0.000000 0.000000 NOHOLD
+#[COM1] 
+        #data='<          COM1 RXSTATUSEVENTA ONNEW 0.000000 0.000000 HOLD'     
+        if ( ( com in data) & (( 'ONNEW' in data) | ( 'ONCHANGED' in data) | ('ONTIME' in data)) ): 
+            fields = data.split(' ');
+            # fields[10] , fields[11] , this will unlog com1_30 data too.
+            unlog_str=('unlog '+fields[10]+' '+fields[11]+'\r\n')
+            GPS.write( unlog_str)
+            rospy.loginfo( 'Send unlog command to DGPS:'+unlog_str) 
+   
+    rospy.loginfo('Unlog alldata from DGPS %s' % com )  
         
 def _shutdown():
     global GPS
@@ -159,7 +199,7 @@ if __name__ == "__main__":
         #SAVECONFIG
 
 
-        myStr1=('\r\nunlogall\r\nunlogall %s_30 \r\n' % NovAtel_output_port  )
+        myStr1=('\r\nunlogall\r\n')
         myStr2=('log gpggalong ontime %1.2f\r\n' % (1./gps_update_rate)  )
         myStr3=('log gprmc ontime %1.2f\r\n' % (1./gps_update_rate)  )
         myStr4=('log gpgsa ontime %1.2f\r\n' % (1./gps_update_rate)  )
@@ -168,14 +208,16 @@ if __name__ == "__main__":
         myStr7='SAVECONFIG\r\n'
 
         #GPS.write(\r\nunlogall \r\n)
-        GPS.write(myStr1) # unlog everything
-        
+        #GPS.write(myStr1) # unlog streaming data
+        #run our unlog will unlog unwant binary datas
+        Novatel_unlogall(NovAtel_output_port)
+        #Novatel_unlogall(NovAtel_output_port)
         ### for loop back testing only
         #GPS.write('OK')
         ### end of loop back debug
-        
+        GPS.write(myStr1) # unlog streaming data, just try to test the communication
         GPS.flush() # flush data out
-        time.sleep(0.2)
+        time.sleep(0.1)
         if (GPS.inWaiting() >0):
             #read out all datas, the response shuldbe OK
             data=GPS.read(GPS.inWaiting())
@@ -194,21 +236,34 @@ if __name__ == "__main__":
         # set up output formate, for NovAtel dpgs please use gpggalong
         if useRMC:
             GPS.write(myStr3)
+            data = GPS.readline();data = GPS.readline(); #print data
+            rospy.loginfo('[DGPS] Send: '+myStr3+'Got:'+data)
             GPS.write(myStr4)
+            data = GPS.readline();data = GPS.readline(); #print data
+            rospy.loginfo('[DGPS] Send: '+myStr4+'Got:'+data)
         else:
             GPS.write(myStr2) # log gpggalong
+            data = GPS.readline();data = GPS.readline(); #print data
+            rospy.loginfo('[DGPS] Send: '+myStr2+'Got:'+data)
         
         GPS.write(myStr5) #RTKSOURCE OMNISTAR
+        data = GPS.readline();data = GPS.readline(); #print data
+        rospy.loginfo('[DGPS] Send: '+myStr5+'Got:'+data)
         GPS.write(myStr6) #PSRDIFFSOURCE OMNISTAR
+        data = GPS.readline();data = GPS.readline(); #print data
+        rospy.loginfo('[DGPS] Send: '+myStr6+'Got:'+data)
         if (NovAtel_SAVECONFIG):
-            GPS.write(myStr7) #SAVECONFIG  
-       
+            GPS.write(myStr7) #SAVECONFIG 
+            data = GPS.readline();data = GPS.readline(); #print data
+            rospy.loginfo('[DGPS] Send: '+myStr7+'Got:'+data)
+        data = GPS.readline() # drop first output
         while not rospy.is_shutdown():
         
         
         
             ### for loop back debug only
             #StrGPGGA='$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
+            #StrGPGGA='FakeBinaryData$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
             #StrGPGGA0='$GPGGA,,,,,,0,,,,,,,,*66\r\n'
             #StrGPGGA1='$GPGGA,,,,,,0,,,,,,,,*00\r\n'
             #GPS.write(StrGPGGA)
@@ -218,6 +273,16 @@ if __name__ == "__main__":
             
             #read GPS line
             data = GPS.readline()
+            
+            # Try to filter out binary data here
+            if (not data[0]==''): # if is not empty string
+                if (not (data[0]=='$'))&('$' in data) : #we have $ but not at the start of the array [0] , must be mixed with binary data
+                    # log an error 
+                    rospy.logerr("[DGPS] Looks like we have binary data in the output. Please do log loglist and fix it!")
+                    rospy.logerr("[DGPS] Received a sentence but not start with $. Sentence was: %s , trying to fix it" % data)
+                    fields = data.split('$') # this will speprate the data to two part
+                    data='$'+fields[1] # add $ back to the second part
+                    rospy.loginfo("[DGPS] GPS sentence fixed: %s " % data)
 
             if not check_checksum(data):
                 #print checksum_error_counter
