@@ -2,7 +2,7 @@
 
 # Software License Agreement (BSD License)
 #
-# This file is part of Fork of ros-drivers/nmea_gps_driver
+# NovAtel_dgps_driver is Forked from ros-drivers/nmea_gps_driver
 # Modify for NovAtel ProPak V3/ LB+ DGPS unit
 # Copyright (c) 2013 UDM Advanced Mobile Robotics Lab Cheng-Lung Lee
 #
@@ -47,8 +47,7 @@ from sensor_msgs.msg import TimeReference
 from geometry_msgs.msg import TwistStamped
 
 import serial, string, math, time, calendar
-#global checksum_error_counter
-#global  Checksum_error_limits
+
 #nmea_utc should be a string of form hhmmss
 def convertNMEATimeToROS(nmea_utc):
     #Get current time in UTC for date information
