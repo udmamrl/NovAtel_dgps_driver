@@ -256,6 +256,7 @@ if __name__ == "__main__":
         
             ### for loop back debug only
             #StrGPGGA='$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
+            #             0   1         2            3 4             5 6 7  8   9       1011     1213 14    
             #StrGPGGA='FakeBinaryData$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
             #StrGPGGA0='$GPGGA,,,,,,0,,,,,,,,*66\r\n'
             #StrGPGGA1='$GPGGA,,,,,,0,,,,,,,,*00\r\n'
@@ -340,6 +341,8 @@ if __name__ == "__main__":
                             pass
                             #print data
                 else:
+                    #data='$GPGGA,231127.10,4224.7880856,N,08308.2865031,W,9,04,3.1,210.111,M,-34.04,M,03,0138*64\r\n'
+                    #         0   1         2            3 4             5 6 7  8   9       1011     1213 14   15   
                     #Use GGA
                     #No /vel output from just GGA
                     if 'GGA' in fields[0]:
@@ -401,7 +404,8 @@ if __name__ == "__main__":
                         gpspub.publish(navData)
                         gpstimePub.publish(gpstime)
             except ValueError as e:
-                rospy.logwarn("Value error, likely due to missing fields in the NMEA messages. Error was: %s" % e)
+                #rospy.logwarn("Value error, likely due to missing fields in the NMEA messages. Error was: %s" % e)
+                rospy.logwarn("Value error, likely due to missing fields in the NMEA messages. Sentence was: %s" % data)
 
     except rospy.ROSInterruptException:
         GPS.close() #Close GPS serial port
