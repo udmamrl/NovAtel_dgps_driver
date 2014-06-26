@@ -100,19 +100,23 @@ def check_checksum(nmea_sentence):
  
         return False
 
-def Novatel_unlogall(com):
-    global GPS
+def Novatel_unlogall(com,GPS):
+    #global GPS
     Config_str1=('\r\nunlogall\r\nlog loglist\r\n' )
     # read all data out
-    # data=GPS.read(GPS.inWaiting())
+    if (GPS.inWaiting()>0):
+	data=GPS.read(GPS.inWaiting())
     #write loglist
     GPS.write(Config_str1) # unlog
-    time.sleep(0.1)
+    time.sleep(1)
     print '\r\nunlog start\r\n'
+    rospy.loginfo('Unlog Start!!')
     # Read every line till no data in buffer
+    index_i=0
     while (GPS.inWaiting() >0):
         data = GPS.readline()
-        #print data
+        index_i+=1
+        rospy.loginfo( '[loglist-%i]: %s ' %(index_i,data) )
         #example log list
         #<OK
         #[COM1]<LOGLIST COM1 0 89.0 UNKNOWN 0 790.529 004c0020 c00c 5683
@@ -131,10 +135,11 @@ def Novatel_unlogall(com):
             fields = data.split(' ');
             # fields[10] , fields[11] , this will unlog com1_30 data too.
             unlog_str=('unlog '+fields[10]+' '+fields[11]+'\r\n')
+            rospy.loginfo( '[unlog_str-%i]: %s ' %(index_i,unlog_str))
             GPS.write( unlog_str)
             rospy.loginfo( 'Send unlog command to DGPS:'+unlog_str) 
-   
-    rospy.loginfo('Unlog alldata from DGPS %s' % com )  
+    print 'unlog done'
+    rospy.loginfo('Unloged alldata from DGPS %s' % com )  
         
 def _shutdown():
     global GPS
@@ -210,7 +215,7 @@ if __name__ == "__main__":
         Config_str7='SAVECONFIG\r\n'
 
         #run our unlog will unlog unwant binary data
-        Novatel_unlogall(NovAtel_output_port)
+        Novatel_unlogall(NovAtel_output_port,GPS)
         ### for loop back testing only
         #GPS.write('OK')
         ### end of loop back debug
